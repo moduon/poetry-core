@@ -5,6 +5,7 @@ import subprocess
 from collections import namedtuple
 from typing import Any
 from typing import Optional
+from typing import Tuple
 
 from poetry.core.utils._compat import PY36
 from poetry.core.utils._compat import WINDOWS
@@ -256,10 +257,26 @@ class Git:
     def config(self):  # type: () -> GitConfig
         return self._config
 
+    @property
+    def version(self):  # type: () -> Tuple[int, int, int]
+        output = self.run("version")
+        version = re.search(r"(\d+)\.(\d+)\.(\d+)", output)
+        return tuple(map(int, version.groups()))
+
     def clone(self, repository, dest):  # type: (str, Path) -> str
         self._check_parameter(repository)
-
-        return self.run("clone", "--recurse-submodules", "--", repository, str(dest))
+        cmd = [
+            "clone",
+            "--filter=blob:none",
+            "--recurse-submodules",
+            "--",
+            repository,
+            str(dest),
+        ]
+        # Blobless clones introduced in Git 2.17
+        if self.version < (2, 17):
+            cmd.remove("--filter=blob:none")
+        return self.run(*cmd)
 
     def checkout(self, rev, folder=None):  # type: (str, Optional[Path]) -> str
         args = []
